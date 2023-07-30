@@ -4,6 +4,7 @@
 #include <string>
 #include <iostream>
 
+#ifdef CUSTOM_STRING
 class String {
   public:
     String() {}
@@ -29,7 +30,16 @@ class String {
       return *this;
     }
 
+    String & operator = (char * s) {
+      this->_s = s;
+      return *this;
+    }
+
     operator std::string() {
+      return _s;
+    }
+
+    operator const std::string() {
       return _s;
     }
 
@@ -44,6 +54,9 @@ class String {
   private:
     std::string _s;
 };
+#else
+typedef std::string String;
+#endif
 
 class Serial_t {
   public:
@@ -52,6 +65,9 @@ class Serial_t {
     }
     void begin(int baudrate) {
 
+    }
+    void println (String s) {
+      println(s.c_str());
     }
     void println (const char * s = nullptr) {
       if (s) {

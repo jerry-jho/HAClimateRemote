@@ -1,5 +1,5 @@
 #include "HTTPClient.h"
-
+#include <iostream>
 
 HTTPClient::HTTPClient() {
   _clinet = nullptr;
@@ -10,6 +10,9 @@ void HTTPClient::begin(String host, uint16_t port, String uri) {
   if (_clinet) {
     delete _clinet;
   }
+  if (host.substr(0, 7) == String("http://")) {
+    host = host.substr(7);
+  }
   _clinet = new httplib::Client(host, port);
   _uri = uri;
 }
@@ -18,8 +21,11 @@ int HTTPClient::GET() {
   auto res = _clinet->Get(_uri);
   if (res) {
     _body = res->body;
+    return res->status;
+  } else {
+    std::cerr<<res.error()<<std::endl;
+    return -1;
   }
-  return res->status;
 }
 
 String HTTPClient::errorToString(int code) {

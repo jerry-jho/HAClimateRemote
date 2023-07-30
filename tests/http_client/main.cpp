@@ -1,8 +1,8 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 
-const char *ssid = "********";    //你的网络名称
-const char *password = "********"; //你的网络密码
+const char *ssid = "********";
+const char *password = "********";
 
 void setup()
 {
@@ -26,7 +26,7 @@ void loop()
 {
   HTTPClient http;
 
-  http.begin("http://127.0.0.1", 8080, "/hi.html");
+  http.begin("http://localhost", 8080, "/hi.html");
 
   int httpCode = http.GET();
 
@@ -48,7 +48,3 @@ void loop()
   delay(10000);
 }
 
-int main(void) {
-  setup();
-  loop();
-}
