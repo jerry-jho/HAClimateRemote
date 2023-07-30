@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.config": "csv",
+        "string": "cpp",
+        "xstring": "cpp"
+    }
+}
