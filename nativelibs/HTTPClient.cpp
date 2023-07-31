@@ -18,7 +18,7 @@ void HTTPClient::begin(String host, uint16_t port, String uri) {
 }
 
 int HTTPClient::GET() {
-  auto res = _clinet->Get(_uri);
+  auto res = _clinet->Get(_uri, _headers);
   if (res) {
     _body = res->body;
     return res->status;
@@ -26,6 +26,10 @@ int HTTPClient::GET() {
     std::cerr<<res.error()<<std::endl;
     return -1;
   }
+}
+
+void HTTPClient::addHeader(const String& name, const String& value, bool first, bool replace) {
+  _headers.insert(std::make_pair(name, value));
 }
 
 String HTTPClient::errorToString(int code) {

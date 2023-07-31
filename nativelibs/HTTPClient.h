@@ -4,6 +4,7 @@
 #include <httplib.h>
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include "arduino.h"
 
 class HTTPClient {
@@ -11,6 +12,7 @@ class HTTPClient {
     HTTPClient();
 
     void begin(String host, uint16_t port = 80, String uri = "/");
+    void addHeader(const String& name, const String& value, bool first = false, bool replace = true);
     int GET();
     String getString();
 
@@ -22,6 +24,7 @@ class HTTPClient {
     httplib::Client * _clinet;
     String _uri;
     String _body;
+    httplib::Headers _headers;
 };
 
 #define HTTP_CODE_OK 200
