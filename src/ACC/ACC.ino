@@ -1,12 +1,17 @@
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#include "auth.private.h"
-
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#include "hardware.h"
+#include "characters.h"
+
+#include "auth.private.h"
+
 #define USE_SERIAL Serial
 
 WiFiMulti wifiMulti;
@@ -17,6 +22,7 @@ typedef struct {
 
 typedef struct {
   int valid;
+  int fan_valid;
   int sensor_temp;
   int set_temp;
   int hvac_mode; // off - 0 heat - 1 cool - 2
@@ -24,7 +30,7 @@ typedef struct {
 } status_t;
 
 const char * hvac_names[]= {"off","heat","cool"};
-
+const char * speed_names[]= {"AUTO","]]","]]]]","]]]]]]"};
 #define MAX_ROOM_COUNT 10
 status_t g_status[MAX_ROOM_COUNT];
 
@@ -37,12 +43,12 @@ config_t load_config() {
 Adafruit_SSD1306 display(128, 32, &Wire, -1);
 
 void setup_display() {
-  Wire.begin(5,4);
+  Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     Serial.println(F("SSD1306 allocation failed"));
     for(;;); // Don't proceed, loop forever
   }
-  display.setRotation(2);
+  display.setRotation(OLED_ROTATION);
   display.clearDisplay();
   display.setTextSize(2); // 10x2 in size 2
   display.setTextColor(WHITE);
@@ -53,25 +59,10 @@ void setup_display() {
 }
 
 void setup() {
-
-    USE_SERIAL.begin(115200);
-
-    USE_SERIAL.println();
-    USE_SERIAL.println();
-    USE_SERIAL.println();
-    setup_display();
-    /*
-    for(uint8_t t = 4; t > 0; t--) {
-        USE_SERIAL.printf("[SETUP] WAIT %d...\n", t);
-        USE_SERIAL.flush();
-        delay(1000);
-    }*/
-    
-    wifiMulti.addAP(ssid, password);
-
+  USE_SERIAL.begin(115200);
+  setup_display(); 
+  wifiMulti.addAP(ssid, password);
 }
-
-
 
 void loop() {
   if((wifiMulti.run() == WL_CONNECTED)) {
@@ -85,10 +76,10 @@ void loop() {
       int httpCode = http.GET();
       USE_SERIAL.printf("Room %d\n", room_id);
       if(httpCode > 0) {
-        USE_SERIAL.printf("[HTTP] GET... code: %d\n", httpCode);
+        //USE_SERIAL.printf("[HTTP] GET... code: %d\n", httpCode);
         if(httpCode == HTTP_CODE_OK) {
           String payload = http.getString();
-          USE_SERIAL.println(payload);
+          //USE_SERIAL.println(payload);
           DynamicJsonDocument doc(1024);
           deserializeJson(doc, payload);
           g_status[room_id].valid = 1;
@@ -118,34 +109,58 @@ void loop() {
         USE_SERIAL.printf("[HTTP] GET... code: %d\n", httpCode);
         if(httpCode == HTTP_CODE_OK) {
           String payload = http.getString();
-          USE_SERIAL.println(payload);
+          //USE_SERIAL.println(payload);
           DynamicJsonDocument doc(1024);
           deserializeJson(doc, payload);
-          g_status[room_id].valid = 1;
+          g_status[room_id].fan_valid = 1;
+          
+          JsonArray array = doc["attributes"]["options"].as<JsonArray>();
+          g_status[room_id].fan_speed = 0;
+          String fan_state = doc["state"];
+          //USE_SERIAL.printf("fan_state %s\n",fan_state);
+          for(JsonVariant v : array) {
+            //USE_SERIAL.printf("fan_opt %s\n",v.as<String>());
+            if (v.as<String>() == fan_state) break;
+            g_status[room_id].fan_speed ++;
+          }
         } else {
           USE_SERIAL.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
         }
       }
       http.end();
-    } 
+    }
+
     config_t c = load_config();
 
     int room_id = c.current_room;
-    
-    
-    display.clearDisplay();
-    display.setTextSize(2);
-    display.setTextColor(WHITE);
-    //0 1 2 3 4 5 6 7 8 9
-    //# R   S S   T T   M  
-    display.setCursor(0, 0);
-    display.printf("#%d %02d %02d %c",
-      room_id,
-      g_status[room_id].hvac_mode == 0 ? 0 : g_status[room_id].set_temp,
-      g_status[room_id].sensor_temp,
-      g_status[room_id].hvac_mode == 0 ? 'X' : g_status[room_id].hvac_mode == 2 ? 'C' : 'H');
-
-    display.display();
+    if (g_status[room_id].valid && g_status[room_id].fan_valid) {
+      display.clearDisplay();
+      display.drawBitmap(0,0,NAME_GET(room_id),32,16,1);
+      display.drawBitmap(32,0,bitmap_shice,32,16,1);
+      display.drawBitmap(94,0,bitmap_du,16,16,1);
+      if (g_status[room_id].hvac_mode == 1) {
+        display.drawBitmap(112,0,bitmap_re,16,16,1);
+      } else if (g_status[room_id].hvac_mode == 2) {
+        display.drawBitmap(112,0,bitmap_leng,16,16,1);
+      } else {
+        display.drawBitmap(112,0,bitmap_guan,16,16,1);
+      }
+      display.setTextSize(2);
+      display.setTextColor(WHITE);
+      display.setCursor(68, 1);
+      display.printf("%02d", g_status[room_id].sensor_temp);
+      if (g_status[room_id].hvac_mode != 0) {
+        display.setTextSize(1);
+        display.setTextColor(WHITE);
+        display.setCursor(0, 25);
+        display.printf("SET %02d", g_status[room_id].set_temp);
+        if (g_status[room_id].fan_speed < 4) {
+          display.setCursor(50, 25);
+          display.printf("FAN %s", speed_names[g_status[room_id].fan_speed]);
+        }     
+      }
+      display.display();
+    }
   }
-  delay(10000);
+  delay(2000);
 }

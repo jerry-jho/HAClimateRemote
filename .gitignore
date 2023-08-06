@@ -32,3 +32,7 @@
 *.app
 
 *.private.*
+src/ACC/esp32.svd
+src/ACC/debug.cfg
+.gitignore
+src/ACC/debug_custom.json
