@@ -17,5 +17,6 @@
 #define KEY_MSK_POWER 0x04
 #define KEY_MSK_UP 0x08
 #define KEY_MSK_DOWN 0x10
+#define KEY_MSK_FAN 0x20
 
 #endif

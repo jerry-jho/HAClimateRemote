@@ -31,7 +31,7 @@
 *.out
 *.app
 
-*.private.*
+auth.private.h
 esp32.svd
 debug.cfg
 debug_custom.json

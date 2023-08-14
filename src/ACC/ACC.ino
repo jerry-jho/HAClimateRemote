@@ -243,6 +243,8 @@ void loop() {
           if ((key_state & KEY_MSK_UP)) temp = g_status[current_room].set_temp + 1;
           else temp = g_status[current_room].set_temp - 1;
           post_services(api_set_temperature_address, room_api_climate_list[current_room], "temperature", nullptr, temp);
+        } else if (key_state & KEY_MSK_FAN) {
+          post_services(api_set_next_address, room_api_fan_list[current_room], nullptr, nullptr, 0);
         }
         break;
       }
