@@ -40,6 +40,8 @@ config_t load_config() {
   return t;
 }
 
+int current_room = 0;
+
 Adafruit_SSD1306 display(128, 32, &Wire, -1);
 
 void setup_display() {
@@ -58,19 +60,71 @@ void setup_display() {
   delay(1000);
 }
 
+void setup_key() {
+  pinMode(PIN_KEY_SEL_0, OUTPUT);
+  pinMode(PIN_KEY_SEL_1, OUTPUT);
+  pinMode(PIN_KEY_SEL_2, OUTPUT);
+  pinMode(PIN_KEY_VALUE, INPUT);
+}
+
+uint32_t get_key_state() {
+  static uint32_t prev_value = 0x0;
+  uint32_t curr_value = 0;
+  for (int i=0;i<8;i++) {
+    digitalWrite(PIN_KEY_SEL_0, i&1);
+    digitalWrite(PIN_KEY_SEL_1, (i>>1)&1);
+    digitalWrite(PIN_KEY_SEL_2, (i>>2)&1);
+    delay(10);
+    if (digitalRead(PIN_KEY_VALUE) == 0) {
+      curr_value |= (1<<i);
+    }
+  }
+  uint32_t r = 0;
+  if (prev_value != curr_value) {
+    r = curr_value;
+  }
+  prev_value = curr_value;
+  return r;
+}
+
+int post_services(const char * service, const char * id, const char * value_name, const char * value, int ivalue) {
+  HTTPClient http;
+  http.begin(service);
+  http.addHeader("Authorization", token);
+  DynamicJsonDocument doc(128);
+  doc["entity_id"] = id;
+  if (value_name != nullptr) {
+    if (value == nullptr) {
+      doc[value_name] = ivalue;
+    } else {
+      doc[value_name] = value;
+    }
+    
+  }
+  char myDoc[measureJson(doc) + 1];
+  serializeJson(doc, myDoc, measureJson(doc) + 1);
+  int httpCode = http.POST(String(myDoc));
+  USE_SERIAL.printf("[HTTP] POST... code: %d\n", httpCode);
+  return httpCode;
+}
+
+int room_count;
+
 void setup() {
+  setup_key();
   USE_SERIAL.begin(115200);
-  setup_display(); 
+  setup_display();
+  room_count = sizeof(room_api_climate_list) / sizeof(const char *);
   wifiMulti.addAP(ssid, password);
 }
 
 void loop() {
   if((wifiMulti.run() == WL_CONNECTED)) {
-    int room_count = sizeof(room_api_climate_list) / sizeof(const char *);
+    
     for (int room_id=0;room_id<room_count;room_id++) {
       g_status[room_id].valid = 0;
       HTTPClient http;
-      http.begin(room_api_climate_list[room_id]);
+      http.begin(String(api_status_address) + room_api_climate_list[room_id]);
       http.addHeader("Authorization", token);
       http.addHeader("Content-Type", "application/json");
       int httpCode = http.GET();
@@ -86,6 +140,7 @@ void loop() {
           g_status[room_id].set_temp = doc["attributes"]["temperature"];
           g_status[room_id].sensor_temp = doc["attributes"]["current_temperature"];
           String state = doc["state"];
+          g_status[room_id].hvac_mode = 0;
           for (int m=0;m<3;m++) {
             if (state == String(hvac_names[m])) {
               g_status[room_id].hvac_mode = m;
@@ -101,7 +156,7 @@ void loop() {
     for (int room_id=0;room_id<room_count;room_id++) {
       g_status[room_id].fan_speed = 0;
       HTTPClient http;
-      http.begin(room_api_fan_list[room_id]);
+      http.begin(String(api_status_address) + room_api_fan_list[room_id]);
       http.addHeader("Authorization", token);
       http.addHeader("Content-Type", "application/json");
       int httpCode = http.GET();
@@ -130,9 +185,7 @@ void loop() {
       http.end();
     }
 
-    config_t c = load_config();
-
-    int room_id = c.current_room;
+    int room_id = current_room;
     if (g_status[room_id].valid && g_status[room_id].fan_valid) {
       display.clearDisplay();
       display.drawBitmap(0,0,NAME_GET(room_id),32,16,1);
@@ -161,6 +214,45 @@ void loop() {
       }
       display.display();
     }
+    unsigned long start = millis();
+    while(1) {
+      uint32_t key_state = get_key_state();
+      if (key_state) {
+        if (key_state & KEY_MSK_ROOM) {
+          current_room ++;
+          if (current_room >= room_count) {
+            current_room = 0;
+          }
+        } else if ((key_state & KEY_MSK_MODE) || (key_state & KEY_MSK_POWER)) {
+          if (g_status[current_room].hvac_mode == 0) {
+            // now is off
+            post_services(api_turn_on_address, room_api_climate_list[current_room], nullptr, nullptr, 0);
+            post_services(api_set_hvac_address, room_api_climate_list[current_room], "hvac_mode", "cool", 0);
+            
+          } else {
+            if (key_state & KEY_MSK_POWER) {
+              post_services(api_turn_off_address, room_api_climate_list[current_room], nullptr, nullptr, 0);
+            } else if (g_status[current_room].hvac_mode == 2) {
+              post_services(api_set_hvac_address, room_api_climate_list[current_room], "hvac_mode", "heat", 0);
+            } else {
+              post_services(api_set_hvac_address, room_api_climate_list[current_room], "hvac_mode", "cool", 0);
+            }
+          }
+        } else if ((key_state & KEY_MSK_UP) || (key_state & KEY_MSK_DOWN)) {
+          int temp;
+          if ((key_state & KEY_MSK_UP)) temp = g_status[current_room].set_temp + 1;
+          else temp = g_status[current_room].set_temp - 1;
+          post_services(api_set_temperature_address, room_api_climate_list[current_room], "temperature", nullptr, temp);
+        }
+        break;
+      }
+      if (millis() - start > REFRESH_INTERVAL) {
+        break;
+      }
+    }
+    
+    //Serial.printf("key_state = %x\n", key_state);
+  } else {
+    delay(REFRESH_INTERVAL);
   }
-  delay(2000);
 }
