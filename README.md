@@ -6,7 +6,9 @@
 
 理论上任何接有128x32 OLED显示器的ESP32开发板都可以，将src/hardware.h中的I2C pin改成你自己板子上的pin
 
-这里参考使用这款板子 https://www.diymore.cc/collections/esp8266/products/diymore-esp32-0-96-inch-oled-display-wifi-bluetooth-18650-battery-shield-development-board-cp2102-module-for-arduino，并自己做了键盘（键盘的图纸在hw目录）
+这里参考使用这款板子 https://www.diymore.cc/collections/esp8266/products/diymore-esp32-0-96-inch-oled-display-wifi-bluetooth-18650-battery-shield-development-board-cp2102-module-for-arduino
+
+需要自己做个键盘（键盘的图纸在hw目录）
 
 ## 软件
 
